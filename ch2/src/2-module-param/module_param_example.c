@@ -16,7 +16,7 @@ module_param(myunsigned, uint, S_IRUGO);
 MODULE_PARM_DESC(myint, "this is an int variable");
 MODULE_PARM_DESC(mystr, "this is a char pointer variable");
 MODULE_PARM_DESC(myunsigned, "this is a uint");
-MODULE_INFO(my_field_name, "some random string");
+    MODULE_INFO(my_field_name, "some random string");
 
 static int __init module_param_example_init(void){
     pr_info("initialization of module param example\n");
@@ -36,3 +36,10 @@ module_exit(module_param_example_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("AWESOME_USER");
 MODULE_DESCRIPTION("linux kernel module with params");
+
+/*
+* Run the module using
+* ```sh
+* sudo insmod module_param_example.ko myint=42 mystr="Gajendra" myunsigned=555
+* ```
+*/

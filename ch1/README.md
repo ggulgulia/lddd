@@ -40,3 +40,11 @@ sudo dmesg | tail -n 10
 sudo rmmod kernel_name #without .ko
 ```
     - inspect again the unloaded kernel using `dmesg`
+
+### NOTE On Secure Boot Mode of System
+* Reboot your Ubuntu machine.
+* As soon as the computer starts turning back on, repeatedly press your BIOS/UEFI setup key.
+    - Common keys for Intel Core i7 systems are F2, F12, or Del.
+* Use the arrow keys to navigate to the Security, Boot, or Authentication tab.
+* Find the option labeled Secure Boot and change it from Enabled to Disabled.
+* Press F10 to save your changes and exit. Your computer will reboot into Ubuntu normally.
