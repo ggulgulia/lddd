@@ -1,5 +1,5 @@
 ## Kbuild part of Makefile
-obj-m := hello_module.o
+obj-m := 1-hello_module.o
 
 #following is just an exmpple
 #ldflags-y := -T foo_sections.lds

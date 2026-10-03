@@ -25,3 +25,18 @@ cat /lib/modules/$(uname -r)/modules.alias
 6. Running the linux configuration menu
 ```sh
 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- make menuconfig
+
+## Loading kernel module at runtime
+* To load the kernel module (buit out of tree), exeucte the following command
+```sh
+sudo insmod kernel_name.ko
+```
+* Inspect the loaded kernel using `dmesg`
+```sh
+sudo dmesg | tail -n 10
+```
+* Unload the kernel using
+```sh
+sudo rmmod kernel_name #without .ko
+```
+    - inspect again the unloaded kernel using `dmesg`
