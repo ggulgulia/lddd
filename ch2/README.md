@@ -222,19 +222,19 @@ make ARCH=aarch64 CROSS_COMPILE=aarch64-linux-gnu-
     make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- menuconfig
     ```
     - The following image shows how to navigate to the char driver in the menuconfig : 
-        - Home Page of menuconfig highlighting device driver config option
-        ![Home-window-of-menuconfig](/lddd/00-media/ch2/00-custom-driver-config-eg-1.png)
+        - Home Page of menuconfig highlighting device driver config option  
+        ![Home-window-of-menuconfig](../00-media/ch2/00-custom-driver-config-eg-1.png)  
 
-        - Device driver page of menuconfig highlighting char driver config option
-        ![Deivce-driver-of-menuconfig](/lddd/00-media/ch2/00-custom-driver-config-eg-2.png)
+        - Device driver page of menuconfig highlighting char driver config option  
+        ![Deivce-driver-of-menuconfig](../00-media/ch2/00-custom-driver-config-eg-2.png)  
 
-        - Char driver page of menuconfig, at bottom, highlightig the toy char driver that can be configured
-        ![Char-driver-of-menuconfig](/lddd/00-media/ch2/00-custom-driver-config-eg-3.png)
+        - Char driver page of menuconfig, at bottom, highlightig the toy char driver that can be configured  
+        ![Char-driver-of-menuconfig](../00-media/ch2/00-custom-driver-config-eg-3.png)  
 
     - In the image the default configuration in the menu is `<*>` indicating statically compiled module  
-        ![default-setting-in-menuconfig](/lddd/00-media/ch2/00-custom-driver-config-eg-4.png)
+        ![default-setting-in-menuconfig](../00-media/ch2/00-custom-driver-config-eg-4.png)  
 
-    - If on the keyboard, `m` is tapped, the driver is configured to be loadable module indicated by `<M>` in the menuconfig
-        ![module-setting-in-menuconfig](/lddd/00-media/ch2/00-custom-driver-config-eg-5.png)
-    - If on the keyboard `n` is tapped, the driver is not compiled at all, indicated by empty angled brackets `< >`
-        ![turned-off-in-menuconfig](/lddd/00-media/ch2/00-custom-driver-config-eg-6.png)
+    - If on the keyboard, `m` is tapped, the driver is configured to be loadable module indicated by `<M>` in the menuconfig  
+        ![module-setting-in-menuconfig](../00-media/ch2/00-custom-driver-config-eg-5.png)
+    - If on the keyboard `n` is tapped, the driver is not compiled at all, indicated by empty angled brackets `< >`  
+        ![turned-off-in-menuconfig](../00-media/ch2/00-custom-driver-config-eg-6.png)
