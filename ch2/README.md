@@ -238,3 +238,22 @@ make ARCH=aarch64 CROSS_COMPILE=aarch64-linux-gnu-
         ![module-setting-in-menuconfig](../00-media/ch2/00-custom-driver-config-eg-5.png)
     - If on the keyboard `n` is tapped, the driver is not compiled at all, indicated by empty angled brackets `< >`  
         ![turned-off-in-menuconfig](../00-media/ch2/00-custom-driver-config-eg-6.png)
+
+### Handling module parameters
+* Similar to user program, a kernel module can accept argument from command line
+    - used for developer/debug configurations of module so that module doesn't need compilation over and over again
+    - each command line param should be declared using `module_param()`macro
+    - `module_param()` macro defined in `linux/moduleparam.h` as
+    ```
+    mdule_param(name, type, perm)
+    ```
+    - Description of the elements is as follows
+        - `name` : no brainer, this should be the name of parameter variable
+        - `type` : also no brainer, this should be the type of the parameter. Permitted types are `bool, charp, byte, short, ushort, int, uint, long, ulong`. Note `charp` is character pointer
+        - `perm` : represents file permissions. For eg `SI_IRUSR, SI_IWUSR, S_IXUSR, S_IRGRP, S_IWGRP, S_IRUGO`, where the following applies
+            - `S_I` is just a prefix
+            - `R`=read, `W`=write, `X`=execute
+            - `USR`=user, `GRP`=group, `UGO`=user groups and others
+    - to set multiple permissions the flags can be combined with `|`
+    - if `perm` is `0`, the file parameter in Sysfs will not be created
+    - using `S_IRUGO` is recommended (? why though , to be figured out later)
