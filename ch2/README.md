@@ -491,7 +491,7 @@ static struct my_dev *my_dev_create(void)
 * linux kernel doesn't use C headers or C libraires for purpose of maintaining its size and efficiency
     - using C libraries  and headers will bloat the kernel
     - therfore apart from many other API's that linux kernel provides, `printk` is one of them
-* Depending on how important the message was to print printk allows to choose between 8 log levels
+* Depending on how important the message was to print `printk` allows to choose between 8 log levels
     - the log levels are devined in `include/linux/kern_levels.h` header
     - the following table shows the log levels 
 
@@ -509,7 +509,7 @@ static struct my_dev *my_dev_create(void)
     - Lower number = more severe.
     - A message reaches the console only if its level number is **lower than** `console_loglevel`.
     - All messages are still stored in the kernel ring buffer (`dmesg`) regardless of console level.
-    - The `pr_*` helpers are in include/linux/printk.h, which `<linux/kernel.h>` pulls in, so a normal module gets them without extra includes.
+    - The `pr_*` helpers are in `include/linux/printk.h`, which `<linux/kernel.h>` pulls in, so a normal module gets them without extra includes.
 
 ### Changing log levels from the command line
 
@@ -542,3 +542,28 @@ static struct my_dev *my_dev_create(void)
 sudo dmesg -n 7                             # set console_loglevel only (7 = show everything)
 echo 7 | sudo tee /proc/sys/kernel/printk   # writing only the first value
 sudo sysctl -w kernel.printk="7 4 1 7"      # set all four values
+```
+* See the source code and associated instructions for thorough practical understanding
+    - [5-source-code](src/5-printk/printk_levels_demo.mod.c)
+    - [5-printk-instructions](src/5-printk/TESTING_INSTRUCTIONS.md) 
+
+### Modern interfaces for logging in linux kernel
+* `printk` remains low level printing API in kernel
+* `printk`/log-level pairs have been ecoded into clearly named helpers which are recommended to use in new drivers
+* the linux kernel has follwoing new APIs for drivers
+    - `pr_<level>` : used in regular modules that are not drivers
+    - `dev_<level>(struct device * dev, ...)` : this is to be used in device drivers that are not network device (aka `netdev` drivers) 
+    - `netdev_<level>(struct net_device * dev, ...)` : this is to be used in `netdev` drivers exclusively
+* in all the above api, `level` represents log level encoded into meaningful name . 
+* Table below outlines all the three logging api in 7 differnt log levels : 
+
+| Module helpers | Driver helpers | Netdev helper | Description | Log level                                                                             |
+|---             |---             |---            |---          |---                                                                                    |
+| `pr_debug`, `pr_devel` | `dev_dbg` | `netdev_dbg` | Used for debug messages. `pr_devel()` is dead code. This means it is not compiled at all, so it's not present in the final binary unless `DEBUG` is defined. The preferred way to go is `pr_debug`. | 7 |
+| `pr_info` | `dev_info` | `netdev_info` | You can use this for informational purposes, such as start up information at a driver initialization. | 6 |
+| `pr_notice` | `dev_notice` | `netdev_notice` | This is a notice – nothing serious but notable, nevertheless. It is often used to report security events. | 5 |
+| `pr_warning` | `dev_warn` | `netdev_warn` | A warning that means nothing serious by itself but might indicate problems. | 4 |
+| `pr_err` | `dev_err` | `netdev_err` | An error condition, often used by drivers to indicate difficulties with hardware. | 3 |
+| `pr_crit` | `dev_crit` | `netdev_crit` | A critical condition occurred, such as a serious hardware/software failure. | 2 |
+| `pr_alert` | `dev_alert` | `netdev_alert` | Something bad happened and action must be taken immediately. | 1 |
+| `pr_emerg` | `dev_emerg` | `netdev_emerg` | Emergency messages – the system is about to crash or is unstable. | 0 |
