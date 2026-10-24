@@ -3,8 +3,8 @@
 ## Introduction
 * There might be situation where the lock (spinlock or mutex) needs to be acqiured only if it not already held by another contener
 * If the lock is not available, then waiting is not desired
-    - i.e spinlock will not spin if the lock is held by another CPU
-    - in case of mutex, the task will not sleep if the mutex is held by another task.
+    - i.e spinlock should not spin if the lock is held by another CPU
+    - in case of mutex, the task should not sleep if the mutex is held by another task.
 * The kernel provides the following:
     - `spin_trylock(struct spin_lock_t* lock)`
     - `mutex_trylock(struct mutex* lock)`
