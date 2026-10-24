@@ -1,5 +1,7 @@
 # lddd
-a private repository for linux device driver development (and hence the name lddd)
+* A private repository for my personal learning journey of linux device driver development (and hence the name lddd)
+* To build all the source code shipped with this repository, run `make`
+* To clean up the build artifacts (as a result of `make`), run `make clean`
 
 # Summarized notes organized in different chapters
 * Chapter 1 : [Introduction](ch1/README.md)
