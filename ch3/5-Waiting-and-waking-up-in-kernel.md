@@ -177,3 +177,104 @@ wake_up_interruptible(&my_event);           /* 2. then wake sleepers */
 | `wait_event()`               | `wake_up()` or `wake_up_all()` arrives but `data_ready` is still `false`                            | Stays blocked. Re-checks, finds it false, and goes back to sleep.    | Nothing yet (still inside the call)   |
 | `wait_event()`               | `wake_up_interruptible()` or `wake_up_interruptible_all()` arrives, even with `data_ready` `true`   | Stays blocked. An uninterruptible sleeper is not woken by these.     | Nothing yet (still inside the call)   |
 | `wait_event()`               | A signal arrives (for example Ctrl+C)                                                               | Stays blocked. It cannot be interrupted by signals.                  | Nothing yet (still inside the call)   |
+
+# Summary
+
+## Wait queues: which `wait_event*` and which `wake_up*`?
+
+### Mental model: three questions
+
+1. **Can the wait be aborted by a signal?** This picks the `wait_event*` variant.
+2. **How long may it wait?** Forever, or with a timeout.
+3. **Who wakes it, and with which function?** The wake-up must match the sleeper's state.
+
+Golden rules:
+
+- Set the condition **first**, then call `wake_up*()`.
+- A wake-up only makes the sleeper re-check. If the condition is still false, it sleeps again.
+- `wait_event*` can sleep, so never call it from an interrupt handler or while holding a spinlock. `wake_up*()` is safe from interrupt context.
+- Always check the return value of the `_interruptible`, `_killable` and `_timeout` variants.
+
+### 1. Choosing the wait function
+
+```mermaid
+flowchart TD
+    A(["Need to wait for a condition"]) --> B{"Can this code sleep? Process context, no spinlock held"}
+    B -- "No" --> B1["Do not use wait_event. Defer to a workqueue or threaded IRQ instead"]
+    B -- "Yes" --> C{"Who is waiting?"}
+    C -- "User task in read, write or ioctl" --> D{"Should signals abort the wait?"}
+    C -- "Kernel thread" --> K{"Long idle wait that should not count in load average?"}
+    D -- "Yes, any signal" --> W1["wait_event_interruptible"]
+    D -- "Only a fatal signal" --> W2["wait_event_killable"]
+    D -- "No, wait is short and cannot be abandoned" --> W3["wait_event"]
+    K -- "Yes" --> W4["wait_event_idle"]
+    K -- "No" --> F{"Must it freeze during system suspend?"}
+    F -- "Yes" --> W5["wait_event_freezable"]
+    F -- "No" --> W6["wait_event_interruptible with kthread_should_stop in the condition"]
+```
+
+Then add a modifier if needed:
+
+| If you also need...                                        | Use this form                                                                                                       | Why                                                                                                        |
+|------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------|
+| A timeout                                                  | `..._timeout()` (jiffies) or `..._hrtimeout()` (`ktime_t`)                                                          | Avoids waiting forever on hardware that may never respond.                                                 |
+| The condition checked under a spinlock                     | `wait_event_lock_irq()` and `wait_event_interruptible_lock_irq()` (check the exact names in `include/linux/wait.h`) | The lock is held while the condition is evaluated and dropped while sleeping.                              |
+| Many waiters where one event should serve only one of them | `wait_event_interruptible_exclusive()` and friends                                                                  | Avoids waking everyone (thundering herd). Pair with plain `wake_up*()` so only one exclusive waiter wakes. |
+
+### 2. The wait variants at a glance
+
+| Variant                                                          | Sleep state                     | What ends the wait                                                    | Returns                                                 | Use when                                                                                                                       |
+|------------------------------------------------------------------|---------------------------------|-----------------------------------------------------------------------|---------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
+| `wait_event()`                                                   | `TASK_UNINTERRUPTIBLE`          | Condition true only (signals are ignored)                             | Nothing (`void`)                                        | The wait is short and you cannot back out. Long waits show up as `D` state and can trigger hung-task warnings (default 120 s). |
+| `wait_event_interruptible()`                                     | `TASK_INTERRUPTIBLE`            | Condition true or any signal                                          | `0` / `-ERESTARTSYS`                                    | **Default for `read`/`write`/`ioctl` handlers** so Ctrl+C works.                                                               |
+| `wait_event_killable()`                                          | `TASK_KILLABLE`                 | Condition true or a fatal signal                                      | `0` / `-ERESTARTSYS`                                    | Ordinary signals must not abort the wait, but the task must stay killable.                                                     |
+| `wait_event_timeout()`                                           | `TASK_UNINTERRUPTIBLE`          | Condition true or timeout (jiffies)                                   | `0` = timed out, condition false; `>0` = condition true | Bounded wait for hardware that cannot be aborted.                                                                              |
+| `wait_event_interruptible_timeout()`                             | `TASK_INTERRUPTIBLE`            | Condition, timeout or signal                                          | `0` / `>0` / `-ERESTARTSYS`                             | Bounded and abortable wait in a syscall handler.                                                                               |
+| `wait_event_hrtimeout()`, `wait_event_interruptible_hrtimeout()` | Uninterruptible / interruptible | Condition, `ktime_t` timeout (and a signal for the interruptible one) | `0` / `-ETIME` (plus `-ERESTARTSYS` if interruptible)   | Timeout finer than the jiffy tick.                                                                                             |
+| `wait_event_idle()`                                              | `TASK_IDLE`                     | Condition true only                                                   | Nothing (`void`)                                        | Kernel threads that sit idle for long periods and must not inflate the load average.                                           |
+| `wait_event_freezable()`                                         | `TASK_INTERRUPTIBLE`, freezable | Condition, signal, or freeze for suspend                              | `0` / `-ERESTARTSYS`                                    | Kernel threads that must not block system suspend.                                                                             |
+
+### 3. Choosing the wake function
+
+```mermaid
+flowchart TD
+    A(["Event happened"]) --> B["1. Update the condition first"]
+    B --> C{"Do ALL waiters on this queue use interruptible waits?"}
+    C -- "Yes" --> D{"Wake every waiter, exclusive ones included?"}
+    C -- "No or not sure" --> E{"Wake every waiter, exclusive ones included?"}
+    D -- "Yes" --> F["wake_up_interruptible_all"]
+    D -- "No" --> G["wake_up_interruptible"]
+    E -- "Yes" --> H["wake_up_all"]
+    E -- "No" --> I["wake_up"]
+```
+
+| Function                      | Wakes sleepers in state     | How many                                | Use when                                                                        |
+|-------------------------------|-----------------------------|-----------------------------------------|---------------------------------------------------------------------------------|
+| `wake_up()`                   | Any sleeper (`TASK_NORMAL`) | All non-exclusive + at most 1 exclusive | **Safe default.** Mixed waiters, or you are not sure.                           |
+| `wake_up_all()`               | Any sleeper                 | All, exclusive ones included            | Broadcast events: shutdown, device removal, state change relevant to everybody. |
+| `wake_up_interruptible()`     | `TASK_INTERRUPTIBLE` only   | All non-exclusive + at most 1 exclusive | Every waiter on this queue uses an `_interruptible` wait.                       |
+| `wake_up_interruptible_all()` | `TASK_INTERRUPTIBLE` only   | All, exclusive ones included            | Same as above, broadcast.                                                       |
+
+### 4. Which wake-up reaches which waiter
+
+| Waiter used                                                                       | `wake_up()` / `wake_up_all()` | `wake_up_interruptible()` / `wake_up_interruptible_all()` |
+|-----------------------------------------------------------------------------------|-------------------------------|-----------------------------------------------------------|
+| `wait_event()`, `wait_event_timeout()`, `wait_event_hrtimeout()`                  | Wakes it                      | **Does not wake it**                                      |
+| `wait_event_killable()`                                                           | Wakes it                      | **Does not wake it**                                      |
+| `wait_event_idle()`                                                               | Wakes it                      | **Does not wake it**                                      |
+| `wait_event_interruptible()` and its `_timeout`, `_hrtimeout`, `_freezable` forms | Wakes it                      | Wakes it                                                  |
+
+Signals are separate: they wake `_interruptible` and `_killable` sleepers on their own, whatever wake function you use.
+
+### 5. Common mistakes
+
+- Calling `wake_up_interruptible()` for a `wait_event()` or `wait_event_killable()` waiter. It never wakes, and the task sleeps on.
+- Waking without setting the condition, or setting the condition without waking. A sleeping task needs both.
+- Putting side effects in the condition (`counter++`, consuming an item). It runs many times.
+- Ignoring `-ERESTARTSYS`. Release what you took and return it unchanged, unless you already made progress (then return the partial count).
+- With several consumers, not re-checking the condition under your lock after waking.
+- Using plain `wait_event()` for long waits. The task cannot be interrupted and may trigger hung-task warnings.
+
+### One-line cheat sheet
+
+> Syscall handler: `wait_event_interruptible()` + `wake_up_interruptible()` (or `wake_up()`). Unsure about the mix of waiters: `wake_up()`. Need a timeout: add `_timeout`. Broadcast: `_all`.
