@@ -3,3 +3,5 @@
 * 3. [Mutexs](3-Mutexes.md)
 * 4. [Try-Lock Methods](4-try-lock-methods.md)
 * 5. [Waiting and waking up mechanisms in kernel](5-Waiting-and-waking-up-in-kernel.md)
+* 6. [Simple sleeping mechanism in kernel](6-Simple-Sleeping.md)
+* 7. [Time management in linux kernel](7-Time-management.md)
