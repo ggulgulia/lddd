@@ -13,6 +13,7 @@
 * Fundamentally the difference between the two mechanisms is how the waking up happens:
 * **Simple sleeping** in kernel is implemented using a dedicated sleep API.
 * **Conditional based sleeping** in kernel is implemented using a wait queue.
+* In this document we will look at conditional based sleeping and in the [next document](6-Simple-Sleeping.md) the mechanism of simple slpeeing will be discussed in detail. 
 
 ## Wait queue
 * Kernel scheduler manages a list of tasks to run (tasks in `TASK_RUNNING` state). This list is known as *runqueue*.
@@ -22,7 +23,7 @@
 * Wait queues are higher level mechanisms essentially used for one of the following:
     - process blocking input/output (I/O).
     - to wait for a condition to be true.
-    - To wait for a given event to occur.
+    - to wait for a given event to occur.
     - to sense data or resource availability.
 * Structure of wait queue defined in `include/linux/wait.h` looks something like:
 
@@ -35,14 +36,14 @@ struct wait_queue_head {
 * Thus wait queue data structure consists of the following:
     - a list which consists of sleeping process waiting to be awakend
     - a spinlock to protect access to this list
-* Wait queue can therefore be used when more than one process wants to sleep
+* Wait queue can therefore be used when more than one process wants to sleep.
     - In other words, each process that wants to sleep while waiting for the event to occur puts itself in this list before going to sleep.
     - While a process is in the list, it is called wait queue entry. 
     - When an event occurs, one or more process on the list are woken up and moved off the list.
 * Wait queue data structure only remembers which process sleeps in it but doesn't store or examine whether the wake up condition is true or false.
 ## Two methods of declaring and initializing wait queue
 
-1. **Static initialization**: Use `DECLARE_WAIT_QUEU_HEAD` macro
+1. **Static initialization**: Use `DECLARE_WAIT_QUEUE_HEAD` macro
 ```c
 DECLARE_WAIT_QUEUE_HEAD(wq);
 /*equivalent to: wait_queue_head_t wq = some_static_init_steps;
@@ -67,27 +68,27 @@ init_wait_queue_head(&my_dev->wq);
 * **NOTE** This has the same  trade-off as `DEFINE_SPINLOCK`and `spint_lock_init()` covered in [Advantages and disadvantages of static vs dynamic spinlock creation](2-SpinLocks.md#advantages-and-disadvantages-of-static-and-dynamic-creation-of-spinlocks)
 
 ## Details
-### Putting to sleep via `wait_event_*` API calls 
+### Putting to sleep via `wait_event*` API calls 
 * Any process/task that wants to sleep while waiting for an event to trigger so that the process/task can wake up
 * Most of the time the event is availability of a resource or a condition to become true
-    - This before going to sleep, it makes sense to check the condition or resource availbility before going to sleeps
-* The kernel api that puts the task to sleep also accepts a condition.
+    - Thus before a task going to sleep, it makes sense to check the condition (or resource availbility) before the task is put to sleep.
+* The kernel API that puts the task to sleep also accepts a condition.
 *  There are four kernel api's for putting task(s) to sleep:
-    - `wait_event(&wq, condition)` : puts the process/task to `TASK_UNINTERRUPTIBLE`
-    - `wait_event_interruptible(&wq, condition)` . puts the process/task to `TASK_INTERRUPTIBLE` state
-    - `wait_event_killable(&wq, condition)` : puts the task/process to `TASK_KILLABLE` state (not to be discussed here anymore)
+    - `wait_event(&wq, condition)`: puts the process/task to `TASK_UNINTERRUPTIBLE`
+    - `wait_event_interruptible(&wq, condition)`: puts the process/task to `TASK_INTERRUPTIBLE` state.
+    - `wait_event_killable(&wq, condition)` : puts the task/process to `TASK_KILLABLE` state.
     - `wait_event_timeout(&wq, condition, timeout)`: same as `wait_event` but allows for a timout after which the task can wait
-    - `wait_event_timeout_interruptible(&wq, condition, timeout)`: same as `wait_event` but allows for a timout after which the task can wait
-* The `wait_event_timeout` has two behaviors depenending on the timeout having elapsed or not. These are
+    - `wait_event_timeout_interruptible()`: same as `wait_event` but allows for a timout after which the task can wait
+* The `wait_event_timeout(&wq, condition, timeout)`: has two behaviors depenending on the timeout having elapsed or not. These are
     - **Timeout elapsed** : 
         - function returns 0 if `condition` evaluated to `false`
         - function returns 1 if `condition` evaluated to `true`
-    - **Timeout not elapsed yet**: Function returns remaining time (in jiffies, at least 1 , more on this later) if the `condition` evaluates to `true`
+    - **Timeout not elapsed yet**: Function returns remaining time (in `jiffies`, at least 1 , more on this later) if the `condition` evaluates to `true`
 *  Internally all the flavors of `wait_event` does the following
     - it checks the condition (on resource availability for eg).
     - if `true`, then the task is not put to sleep and a can continue execution.
-    - if `false` then the flag `TASK_(UN)INTERRUPTIBLE` flag is set and `schedule()` is called  on the task (which schedules the task for later execution or simply said, the task is put to sleep)
-    - here's  a simple code snippet of what happens internally in either of `wait_event_*`function: 
+    - if `false` then the flag `TASK_(UN)INTERRUPTIBLE` flag is set and `schedule()` is called  on the task (which removes the task from the run queue, and the task is put to sleep)
+    - here's  a simple code snippet of what happens internally in one of `wait_event*`function: 
     ```c
     for (;;) {
         prepare_to_wait_event(&wq, &entry, state);   /* add to wait queue, set task state */
@@ -110,7 +111,7 @@ init_wait_queue_head(&my_dev->wq);
     }
     finish_wait(&wq, &entry);                        /* back to TASK_RUNNING, remove from queue */
     ```
-### Waking up a task in sleep state via `wake_up_*` API Calls
+### Waking up a task in sleep state via `wake_up*` API Calls
 * After the change in `condition` or an interrupt (or kill) signal the appropriate `wake_up*` family of function should be called.
     - `wake_up()/wake_up_all()`: wakes up one or all the tasks in the event queue
     - `wake_up_interruptible()/wake_up_interruptible_all()`
@@ -178,6 +179,18 @@ wake_up_interruptible(&my_event);           /* 2. then wake sleepers */
 | `wait_event()`               | `wake_up_interruptible()` or `wake_up_interruptible_all()` arrives, even with `data_ready` `true`   | Stays blocked. An uninterruptible sleeper is not woken by these.     | Nothing yet (still inside the call)   |
 | `wait_event()`               | A signal arrives (for example Ctrl+C)                                                               | Stays blocked. It cannot be interrupted by signals.                  | Nothing yet (still inside the call)   |
 
+# Clarifying the role of `schedule()`
+* From the above discussions, it might be easy have a misunderstanding on the role of scheduler. The call to `schedule()` neither schedules the task to go to sleep nor schedules the to go to runqueue. 
+* The scheduler simply picks the next task to run on the CPU by observing the state of the task.
+    - If the state of the task is `TASK_RUNNING` then the scheduler leaves the task in the run queue.
+        - this task may run immediately or after sometime depending on the run queue
+    - If the state of the task is `TASK_INTERRUPTIBLE` or `TASK_UNINTERRUPTIBLE` the scheduler removes the task from the run queue.
+* After scheduler has finished processing the task, it context switches to some other runnable task.
+
+## Who puts the task to run queue
+* Not `schedule()` but the waker does
+    - `wake_up()` calls `try_to_wake_up()` which sets the state back to `TASK_RUNNING` and enqueues it to a runqueue.
+    - A signal does the same for task interruptible task
 # Summary
 
 ## Wait queues: which `wait_event*` and which `wake_up*`?
