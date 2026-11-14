@@ -19,3 +19,4 @@
     - [Spin lock IRQ vs IRQ save](ch3/src/3-spin-lock-irq-vs-irq-save/TESTING_INSTRUCTIONS.md)
     - [Wait queue demo](ch3/src/5-waitq-demo/TESTING_INSTRUCTIONS.md)
     - [Time management in ARM CPU](ch3/src/7-time-management/TESTING_INSTRUCTIONS.md)
+    - [Task-deffering-via-softirq](ch3/src/8-softirq/Softirq-Experiements-to-try.md)
